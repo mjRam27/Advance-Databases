@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+pymongo
+redis
+neo4j
+requests
