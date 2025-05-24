@@ -1,15 +1,18 @@
 import requests
 from datetime import datetime
 from utils.db_mongo import log_trip
-from utils.db_neo4j import create_route
+from bson import ObjectId
 
-# Redis fallback: dummy no-op functions if Redis is not set up
+# from utils.db_neo4j import create_route  # Neo4j disabled
+
+# Redis fallback: dummy no-op functions
 def cache_departure(*args, **kwargs):
     pass
 
 def get_cached_departure(*args, **kwargs):
     return None
 
+# Transport mode filters
 MODE_FILTERS = {
     "bus": ["Bus"],
     "tram": ["Tram"],
@@ -28,7 +31,7 @@ def fetch_mode_data(station_from, station_to, mode_key):
 
     url = f"https://v5.vbb.transport.rest/stops/{station_from}/departures"
     params = {
-        "duration": 30,
+        "duration": 120,
         "language": "en",
         "remarks": "true"
     }
@@ -53,8 +56,8 @@ def fetch_mode_data(station_from, station_to, mode_key):
                 "from": trip.get("stop", {}).get("name", "Unknown"),
                 "to": trip.get("destination", {}).get("name", "Unknown"),
                 "departure": datetime.fromisoformat(trip["when"]).strftime("%H:%M") if trip.get("when") else "N/A",
-                "arrival": "N/A",  # Not available in this endpoint
-                "duration": "N/A",  # Not available in this endpoint
+                "arrival": "N/A",
+                "duration": "N/A",
                 "line": line_info.get("name", "N/A"),
                 "platform": trip.get("platform", "N/A"),
                 "delay": trip.get("delay", 0),
@@ -62,18 +65,22 @@ def fetch_mode_data(station_from, station_to, mode_key):
                 "mode": product
             }
 
-            journeys.append(journey_data)
-
-            # Log to MongoDB
+            # Log to MongoDB (do not return ObjectId)
             log_trip(journey_data, f"{mode_key}_logs")
 
-            # Create connection in Neo4j
-            create_route(journey_data["from"], journey_data["to"], journey_data["line"], journey_data["delay"])
+            # Neo4j disabled
+            # create_route(journey_data["from"], journey_data["to"], journey_data["line"], journey_data["delay"])
 
-        # Cache result (no-op if Redis is disabled)
+            journeys.append(journey_data)
+
+        # Cache result (safe no-op)
+              # Cache result (no-op if Redis is disabled)
         cache_departure(redis_key, journeys)
 
-        return journeys
+        # Clean out ObjectId (_id) that MongoDB adds
+        clean_journeys = [{k: v for k, v in j.items() if k != "_id"} for j in journeys]
+
+        return clean_journeys
 
     except Exception as e:
         print(f"❌ Error in fetch_mode_data: {e}")

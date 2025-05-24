@@ -8,6 +8,8 @@ services:
     volumes:
       - .:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - .env  # Loads environment variables like MONGO_URI
     depends_on:
       - redis
       - mongo
@@ -31,7 +33,10 @@ services:
       - "7474:7474"
       - "7687:7687"
     environment:
-      NEO4J_AUTH: neo4j/password
+      - NEO4J_AUTH=neo4j/password
+    volumes:
+      - neo4j_data:/data
 
 volumes:
   mongo_data:
+  neo4j_data:
