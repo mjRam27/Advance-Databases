@@ -1,6 +1,6 @@
 # # utils/db_neo4j.py
 # from neo4j import GraphDatabase
-# driver = GraphDatabase.driver("bolt://localhost:7687", auth=("neo4j", "Q@vrjud0327"))
+# driver = GraphDatabase.driver("bolt://localhost:7687", auth=("neo4j", "#######"))
 # def create_route(from_station, to_station, line, delay):
 #     with driver.session() as session:
 #         session.run(

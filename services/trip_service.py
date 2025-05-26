@@ -1,5 +1,5 @@
 import requests
-# from utils.resolve import get_station_id
+from utils.resolve import get_station_id
 
 def fetch_trip_by_id(trip_id: str):
     url = f"https://v5.vbb.transport.rest/trips/{trip_id}"
