@@ -1,4 +1,4 @@
-# bus_service.py:
-from services.shared import fetch_mode_data
-def fetch_bus_data(from_station, to_station):
-    return fetch_mode_data(from_station, to_station, "bus")
+from services.shared import fetch_departures
+
+def get_bus_departures(station_id: str):
+    return fetch_departures(station_id, "bus")

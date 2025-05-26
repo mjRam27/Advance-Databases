@@ -1,14 +1,10 @@
-# utils/db_mongo.py
 from pymongo import MongoClient
 import os
-from dotenv import load_dotenv
 
-load_dotenv()  # loads .env file
+client = MongoClient(os.getenv("MONGO_URL", "mongodb://localhost:27017"))
+db = client["vbb_db"]
 
-MONGO_URI = os.getenv("MONGO_URI")
-client = MongoClient(MONGO_URI)
-
-db = client["vbb_db"]  # or whatever DB name you want
-
-def log_trip(data, collection):
-    db[collection].insert_one(data)
+def log_trip(trip_data: dict, collection_name: str):
+    collection = db[collection_name]
+    inserted = collection.insert_one(trip_data)
+    return str(inserted.inserted_id)  # <-- Convert ObjectId to string

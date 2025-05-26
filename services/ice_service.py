@@ -1,4 +1,4 @@
-# ice_service.py
-from services.shared import fetch_mode_data
-def fetch_ice_data(from_station, to_station):
-    return fetch_mode_data(from_station, to_station, "ice")
+from services.shared import fetch_departures
+
+def get_ice_departures(station_id: str):
+    return fetch_departures(station_id, "express")

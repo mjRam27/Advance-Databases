@@ -1,87 +1,71 @@
 import requests
-from datetime import datetime
 from utils.db_mongo import log_trip
-from bson import ObjectId
+from bson.errors import InvalidDocument  # catch specific MongoDB errors
 
-# from utils.db_neo4j import create_route  # Neo4j disabled
-
-# Redis fallback: dummy no-op functions
-def cache_departure(*args, **kwargs):
-    pass
-
-def get_cached_departure(*args, **kwargs):
-    return None
-
-# Transport mode filters
-MODE_FILTERS = {
-    "bus": ["Bus"],
-    "tram": ["Tram"],
-    "ice": ["ICE", "FEX", "FLX"],
-    "sbahn": ["S"],
-    "ubahn": ["U"],
-    "re": ["RE", "RB"]
+# Define mode groups, normalize everything to lowercase
+MODE_GROUPS = {
+    "bus": ["bus"],
+    "tram": ["tram"],
+    "subway": ["subway"],
+    "suburban": ["suburban"],
+    "regional": ["regional"],
+    "express": ["express", "ice", "fex", "flx"]
 }
 
-def fetch_mode_data(station_from, station_to, mode_key):
-    redis_key = f"{mode_key}:{station_from}->{station_to}"
-    cached = get_cached_departure(redis_key)
-    if cached:
-        print(f"🔁 Using cached {mode_key.upper()} data")
-        return cached
-
-    url = f"https://v5.vbb.transport.rest/stops/{station_from}/departures"
+def fetch_departures(station_id: str, transport_type: str, duration: int = 120):
+    url = f"https://v5.vbb.transport.rest/stops/{station_id}/departures"
     params = {
-        "duration": 120,
+        "duration": duration,
         "language": "en",
         "remarks": "true"
     }
 
-    print(f"📡 Calling URL: {url}")
-    print("🔥 Fetching mode data triggered!")
-
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params)
         response.raise_for_status()
         data = response.json()
 
-        journeys = []
-        for trip in data:
-            line_info = trip.get("line", {})
-            product = line_info.get("productName", "Unknown")
+        results = []
+        accepted_products = MODE_GROUPS.get(transport_type.lower(), [])
 
-            if product not in MODE_FILTERS.get(mode_key, []):
+        for trip in data:
+            line = trip.get("line", {})
+            mode = line.get("product", "").lower()
+
+            # Debug print: you can remove these later
+            print(f"✅ Found line: {line.get('name')} with product: {mode}")
+
+            if mode not in accepted_products:
                 continue
 
-            journey_data = {
-                "from": trip.get("stop", {}).get("name", "Unknown"),
-                "to": trip.get("destination", {}).get("name", "Unknown"),
-                "departure": datetime.fromisoformat(trip["when"]).strftime("%H:%M") if trip.get("when") else "N/A",
-                "arrival": "N/A",
-                "duration": "N/A",
-                "line": line_info.get("name", "N/A"),
-                "platform": trip.get("platform", "N/A"),
-                "delay": trip.get("delay", 0),
-                "stops": [],
-                "mode": product
+            result = {
+                "from": trip.get("stop", {}).get("name"),
+                "to": trip.get("direction"),
+                "departure": trip.get("when"),
+                "plannedDeparture": trip.get("plannedWhen"),
+                "delay": trip.get("delay"),
+                "platform": trip.get("platform"),
+                "line": line.get("name"),
+                "mode": mode,
             }
 
-            # Log to MongoDB (do not return ObjectId)
-            log_trip(journey_data, f"{mode_key}_logs")
+            # Insert into MongoDB with safety
+            try:
+                log_trip(result, f"{transport_type.lower()}_logs")
+                print(f"✅ Inserted into MongoDB for {transport_type}")
+            except InvalidDocument as mongo_err:
+                print(f"❌ Invalid MongoDB Document: {mongo_err}")
+            except Exception as err:
+                print(f"❌ General MongoDB Insert Error: {err}")
 
-            # Neo4j disabled
-            # create_route(journey_data["from"], journey_data["to"], journey_data["line"], journey_data["delay"])
+            results.append(result)
 
-            journeys.append(journey_data)
+        return results if results else [{"note": f"No {transport_type.upper()} departures found."}]
 
-        # Cache result (safe no-op)
-              # Cache result (no-op if Redis is disabled)
-        cache_departure(redis_key, journeys)
-
-        # Clean out ObjectId (_id) that MongoDB adds
-        clean_journeys = [{k: v for k, v in j.items() if k != "_id"} for j in journeys]
-
-        return clean_journeys
+    except requests.exceptions.RequestException as net_err:
+        print(f"❌ Network/API error: {net_err}")
+        return {"error": "API unreachable or bad request."}
 
     except Exception as e:
-        print(f"❌ Error in fetch_mode_data: {e}")
+        print(f"❌ Unexpected Error: {e}")
         return {"error": str(e)}
