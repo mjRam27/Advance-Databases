@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   fastapi-backend:
     build: .
@@ -9,34 +7,6 @@ services:
       - .:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
-      - .env  # Loads environment variables like MONGO_URI
+      - .env
     depends_on:
-      - redis
-      - mongo
-      - neo4j
-
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
-
-  mongo:
-    image: mongo
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-
-  neo4j:
-    image: neo4j:latest
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    environment:
-      - NEO4J_AUTH=neo4j/password
-    volumes:
-      - neo4j_data:/data
-
-volumes:
-  mongo_data:
-  neo4j_data:
+      []

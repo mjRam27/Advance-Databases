@@ -1,7 +1,7 @@
 fastapi
-uvicorn
+uvicorn[standard]
+requests
 pymongo
 redis
 neo4j
-requests
 python-dotenv
