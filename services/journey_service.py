@@ -1,8 +1,6 @@
-# services/journey_service.py
-
 import requests
 
-def fetch_journey(from_station: str, to_station: str):
+def fetch_journey(from_station: str, to_station: str, products: list[str] = None):
     url = "https://v5.vbb.transport.rest/journeys"
     params = {
         "from": from_station,
@@ -11,6 +9,10 @@ def fetch_journey(from_station: str, to_station: str):
         "results": 1,
         "language": "en"
     }
+
+    if products:
+        for p in products:
+            params.setdefault("products[]", []).append(p)
 
     try:
         response = requests.get(url, params=params)
