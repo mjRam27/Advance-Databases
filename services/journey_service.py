@@ -1,16 +1,16 @@
 import requests
-# from pymongo import MongoClient
-# from dotenv import load_dotenv
+from pymongo import MongoClient
+from dotenv import load_dotenv
 from datetime import datetime
-# import os
+import os
 
-# load_dotenv()
+load_dotenv()
 
-# MONGO_URI = os.getenv("MONGO_URI")
-# client = MongoClient(MONGO_URI)
-# db = client["Vbb_transport"]
-# journey_collection = db["journey_logs"]
-# station_collection = db["station_logs"]
+MONGO_URI = os.getenv("MONGO_URI")
+client = MongoClient(MONGO_URI)
+db = client["Vbb_transport"]
+journey_collection = db["journey_logs"]
+station_collection = db["station_logs"]
 
 def fetch_journey(from_station: str, to_station: str, products: list[str] = None):
     url = "https://v5.vbb.transport.rest/journeys"
@@ -61,19 +61,20 @@ def fetch_journey(from_station: str, to_station: str, products: list[str] = None
             "timestamp": datetime.utcnow(),
             "stops": stops
         }
-        print("MongoDB logging skipped. Journey entry:", entry)
-        # journey_collection.insert_one(entry)
+
+        result = journey_collection.insert_one(entry)
+        entry["_id"] = str(result.inserted_id)  # Fix: convert ObjectId to str
 
         # Optional: save each stop's metadata
-        # for s in stops:
-        #     station_collection.update_one(
-        #         {"station_id": s["station_id"]},
-        #         {"$set": {
-        #             "name": s["stop"],
-        #             "platform": s["platform"]
-        #         }},
-        #         upsert=True
-        #     )
+        for s in stops:
+            station_collection.update_one(
+                {"station_id": s["station_id"]},
+                {"$set": {
+                    "name": s["stop"],
+                    "platform": s["platform"]
+                }},
+                upsert=True
+            )
 
         return {
             "status": "success",
