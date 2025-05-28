@@ -1,7 +1,6 @@
 fastapi
 uvicorn[standard]
 requests
-pymongo
-redis
-neo4j
+pymongo[srv]
+dnspython
 python-dotenv
