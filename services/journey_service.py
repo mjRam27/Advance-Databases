@@ -3,6 +3,8 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 from datetime import datetime
 import os
+# import json
+from utils.db_redis import cache_departure, get_cached_departure
 
 load_dotenv()
 
@@ -13,6 +15,13 @@ journey_collection = db["journey_logs"]
 station_collection = db["station_logs"]
 
 def fetch_journey(from_station: str, to_station: str, products: list[str] = None):
+    # ✅ Create a unique cache key
+    cache_key = f"{from_station}:{to_station}:{','.join(products or [])}"
+    cached = get_cached_departure(cache_key)
+    if cached:
+        return {"status": "cached", "journey": cached}
+
+    # If not cached, hit the VBB API
     url = "https://v5.vbb.transport.rest/journeys"
     params = {
         "from": from_station,
@@ -50,7 +59,7 @@ def fetch_journey(from_station: str, to_station: str, products: list[str] = None
             for s in leg.get("stopovers", [])
         ]
 
-        # Insert into journey_logs
+        # Prepare entry
         entry = {
             "from": leg["origin"]["name"],
             "to": leg["destination"]["name"],
@@ -58,28 +67,30 @@ def fetch_journey(from_station: str, to_station: str, products: list[str] = None
             "mode": leg.get("line", {}).get("mode"),
             "platform": leg.get("platform"),
             "delay": leg.get("departureDelay", 0),
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.utcnow().isoformat(),
             "stops": stops
         }
 
+        # Insert into MongoDB
         result = journey_collection.insert_one(entry)
-        entry["_id"] = str(result.inserted_id)  # Fix: convert ObjectId to str
+        entry["_id"] = str(result.inserted_id)
 
-        # Optional: save each stop's metadata
+        # Optional: update station logs
         for s in stops:
             station_collection.update_one(
                 {"station_id": s["station_id"]},
                 {"$set": {
                     "name": s["stop"],
-                    "platform": s["platform"]
+                    "platform": s["platform"],
+                    "line": leg.get("line", {}).get("name")
                 }},
                 upsert=True
             )
 
-        return {
-            "status": "success",
-            "journey": entry
-        }
+        # ✅ Cache the journey
+        cache_departure(cache_key, entry, ttl=300)
+
+        return {"status": "success", "journey": entry}
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
