@@ -3,8 +3,8 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 from datetime import datetime
 import os
-# import json
 from utils.db_redis import cache_departure, get_cached_departure
+from utils.resolve import get_station_id  # Ensure this is available
 
 load_dotenv()
 
@@ -15,17 +15,22 @@ journey_collection = db["journey_logs"]
 station_collection = db["station_logs"]
 
 def fetch_journey(from_station: str, to_station: str, products: list[str] = None):
-    # ✅ Create a unique cache key
-    cache_key = f"{from_station}:{to_station}:{','.join(products or [])}"
+    # ✅ Resolve station names to IDs if needed
+    from_id = get_station_id(from_station) if not from_station.isdigit() else from_station
+    to_id = get_station_id(to_station) if not to_station.isdigit() else to_station
+
+    # ✅ Build Redis cache key using station IDs
+    cache_key = f"{from_id}:{to_id}:{','.join(products or [])}"
     cached = get_cached_departure(cache_key)
     if cached:
+        print("✅ Cache hit:", cache_key)
         return {"status": "cached", "journey": cached}
 
-    # If not cached, hit the VBB API
+    # Call VBB API
     url = "https://v5.vbb.transport.rest/journeys"
     params = {
-        "from": from_station,
-        "to": to_station,
+        "from": from_id,
+        "to": to_id,
         "stopovers": True,
         "results": 1,
         "language": "en"
@@ -45,7 +50,6 @@ def fetch_journey(from_station: str, to_station: str, products: list[str] = None
         journey = data["journeys"][0]
         leg = journey["legs"][0]
 
-        # Filter stops
         stops = [
             {
                 "stop": s["stop"]["name"],
@@ -59,7 +63,6 @@ def fetch_journey(from_station: str, to_station: str, products: list[str] = None
             for s in leg.get("stopovers", [])
         ]
 
-        # Prepare entry
         entry = {
             "from": leg["origin"]["name"],
             "to": leg["destination"]["name"],
@@ -71,11 +74,11 @@ def fetch_journey(from_station: str, to_station: str, products: list[str] = None
             "stops": stops
         }
 
-        # Insert into MongoDB
+        # Save to MongoDB
         result = journey_collection.insert_one(entry)
         entry["_id"] = str(result.inserted_id)
 
-        # Optional: update station logs
+        # Update station logs
         for s in stops:
             station_collection.update_one(
                 {"station_id": s["station_id"]},
@@ -87,7 +90,7 @@ def fetch_journey(from_station: str, to_station: str, products: list[str] = None
                 upsert=True
             )
 
-        # ✅ Cache the journey
+        # ✅ Save to Redis cache for 5 minutes
         cache_departure(cache_key, entry, ttl=300)
 
         return {"status": "success", "journey": entry}
