@@ -50,7 +50,7 @@ const updateFilter = (event: Event) => {
         v-model="selectedType"
         @change="updateFilter"
 
-ray-300 rounded-md text-sm focus:ring-primary-500 focus:border-primary-500 appearance-none"
+ray-300 rounded-md text-sm focus:ring-primary-500 focus:border-primary-500 appearance-none
       >
         <option value="all">All Transport Types</option>
         <option value="train">Trains Only</option>
