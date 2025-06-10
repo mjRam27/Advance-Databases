@@ -1,8 +1,0 @@
-fastapi
-uvicorn[standard]
-requests
-pymongo[srv]
-dnspython
-python-dotenv
-redis
-
