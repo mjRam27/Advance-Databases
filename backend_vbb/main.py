@@ -1,8 +1,9 @@
 from fastapi import FastAPI, Query
 from typing import Optional
-from services.journey_service import fetch_journey
-from services.refresh_service import refresh_journey
-from utils.resolve import get_station_id
+from backend_vbb.services.journey_service import fetch_journey
+from backend_vbb.services.refresh_service import refresh_journey
+from backend_vbb.utils.resolve import get_station_id
+
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 import os

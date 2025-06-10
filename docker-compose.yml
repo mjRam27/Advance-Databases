@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  fastapi-backend:
+    build:
+      context: ./backend_vbb
+      dockerfile: Dockerfile  # if you have a separate backend Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  frontend:
+    build:
+      context: ./vbb_frontend  # path to your frontend folder
+      dockerfile: Dockerfile  # your frontend Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - fastapi-backend

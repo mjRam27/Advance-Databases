@@ -40,12 +40,12 @@ const selectedModes = computed(() => {
 const searchJourney = async () => {
   if (!fromStation.value || !toStation.value) return
 
-  const datetime = format(
-    new Date(
-      departureDate.value.toDateString() + ' ' + departureTime.value.toTimeString()
-    ),
-    "yyyy-MM-dd'T'HH:mm"
-  )
+  // const datetime = format(
+  //   new Date(
+  //     departureDate.value.toDateString() + ' ' + departureTime.value.toTimeString()
+  //   ),
+  //   "yyyy-MM-dd'T'HH:mm"
+  // )
 
   try {
     const response = await fetchJourney(fromStation.value, toStation.value, selectedModes.value)
