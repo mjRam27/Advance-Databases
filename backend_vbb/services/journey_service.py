@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import os
 from utils.db_redis import cache_departure, get_cached_departure
-from utils.resolve import get_station_id  # Ensure this is available
+from utils.resolve import get_station_id
 
 load_dotenv()
 
@@ -16,18 +16,15 @@ station_collection = db["station_logs"]
 user_collection = db["user_logs"]
 
 def fetch_journey(from_station: str, to_station: str, products: list[str] = None, date: str = None, user_id: str = None, departure: str = None):
-    # ✅ Resolve station names to IDs if needed
     from_id = get_station_id(from_station) if not from_station.isdigit() else from_station
     to_id = get_station_id(to_station) if not to_station.isdigit() else to_station
 
-    # ✅ Build Redis cache key
     cache_key = f"{from_id}:{to_id}:{','.join(products or [])}:{date or ''}"
     cached = get_cached_departure(cache_key)
     if cached:
         print("✅ Cache hit:", cache_key)
-        return {"status": "cached", "journey": cached}
+        return {"status": "cached", "journeys": cached}
 
-    # Call VBB API
     url = "https://v5.vbb.transport.rest/journeys"
     params = {
         "from": from_id,
@@ -35,16 +32,24 @@ def fetch_journey(from_station: str, to_station: str, products: list[str] = None
         "stopovers": True,
         "results": 5,
         "language": "en",
-        "duration":60,
-        "departure": departure ,
+        "duration": 90,
+        "departure": departure,
     }
 
     if products:
+        modes_map = {
+            "train": ["suburban", "subway", "regional", "express"],
+            "bus": ["bus"],
+            "tram": ["tram"],
+            "all": ["suburban", "subway", "regional", "express", "bus", "tram"]
+        }
+
         for p in products:
-            params.setdefault("products[]", []).append(p)
+            for mode in modes_map.get(p, []):
+                params.setdefault("products[]", []).append(mode)
 
     if date:
-        params["departure"] = date  # ISO 8601 datetime
+        params["departure"] = date
 
     try:
         response = requests.get(url, params=params)
@@ -54,64 +59,62 @@ def fetch_journey(from_station: str, to_station: str, products: list[str] = None
         if not data.get("journeys"):
             return {"status": "error", "message": "No journey found"}
 
-        journey = data["journeys"][0]
-        leg = journey["legs"][0]
+        all_journeys = []
 
-        stops = [
-            {
-                "stop": s["stop"]["name"],
-                "station_id": s["stop"]["id"],
-                "departure": s.get("departure"),
-                "arrival": s.get("arrival"),
-                "platform": s.get("platform"),
-                "plannedPlatform": s.get("plannedPlatform"),
-                "delay": s.get("departureDelay", 0)
-            }
-            for s in leg.get("stopovers", [])
-        ]
+        for journey in data["journeys"]:
+            legs_info = []
+            total_changes = len(journey["legs"]) - 1
 
-        entry = {
-            "from": leg["origin"]["name"],
-            "to": leg["destination"]["name"],
-            "line": leg.get("line", {}).get("name"),
-            "mode": leg.get("line", {}).get("mode"),
-            "platform": leg.get("platform"),
-            "delay": leg.get("departureDelay", 0),
-            "timestamp": datetime.utcnow().isoformat(),
-            "stops": stops,
-            "user_id": user_id  # ✅ Optional user tracking
-        }
+            for leg in journey["legs"]:
+                legs_info.append({
+                    "line": leg.get("line", {}).get("name"),
+                    "mode": leg.get("line", {}).get("mode"),
+                    "departure": leg.get("departure"),
+                    "arrival": leg.get("arrival"),
+                    "origin": leg.get("origin", {}).get("name"),
+                    "destination": leg.get("destination", {}).get("name"),
+                    "stopovers": [
+                        {
+                            "name": stop.get("stop", {}).get("name"),
+                            "arrival": stop.get("arrival"),
+                            "departure": stop.get("departure"),
+                            "platform": stop.get("platform"),
+                        }
+                        for stop in leg.get("stopovers", [])
+                    ]
+                })
 
-        # Save to MongoDB
-        result = journey_collection.insert_one(entry)
-        entry["_id"] = str(result.inserted_id)
-
-        # Update station logs
-        for s in stops:
-            station_collection.update_one(
-                {"station_id": s["station_id"]},
-                {"$set": {
-                    "name": s["stop"],
-                    "platform": s["platform"],
-                    "line": leg.get("line", {}).get("name")
-                }},
-                upsert=True
-            )
-
-        # Log per user (if needed)
-        if user_id:
-            user_collection.insert_one({
-                "user_id": user_id,
-                "from": leg["origin"]["name"],
-                "to": leg["destination"]["name"],
-                "timestamp": datetime.utcnow().isoformat(),
-                "journey_id": entry["_id"]
+            all_journeys.append({
+                "departure": journey.get("departure"),
+                "arrival": journey.get("arrival"),
+                "duration": journey.get("duration"),
+                "changes": total_changes,
+                "legs": legs_info
             })
 
-        # ✅ Save to Redis cache for 5 minutes
-        cache_departure(cache_key, entry, ttl=300)
+        if all_journeys:
+            result = journey_collection.insert_one(all_journeys[0])
+            all_journeys[0]["_id"] = str(result.inserted_id)
 
-        return {"status": "success", "journey": entry}
+            if user_id:
+                user_collection.insert_one({
+                    "user_id": user_id,
+                    "from": all_journeys[0]["legs"][0]["origin"],
+                    "to": all_journeys[0]["legs"][-1]["destination"],
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "journey_id": all_journeys[0]["_id"]
+                })
+
+            for leg in all_journeys[0]["legs"]:
+                for station_name in [leg["origin"], leg["destination"]]:
+                    station_collection.update_one(
+                        {"station_id": station_name},
+                        {"$set": {"name": station_name, "line": leg["line"]}},
+                        upsert=True
+                    )
+
+        cache_departure(cache_key, all_journeys, ttl=300)
+        return {"status": "success", "journeys": all_journeys}
 
     except Exception as e:
         return {"status": "error", "message": str(e)}

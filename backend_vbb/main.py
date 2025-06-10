@@ -33,7 +33,7 @@ def root():
 def journey(
     from_station: str,
     to_station: str,
-    products: Optional[list[str]] = Query(default=None),
+    products: Optional[list[str]] = Query(default=None, alias="products[]"),
     departure: Optional[str] = None,       # ✅ corrected key name
     user_id: Optional[str] = None
 ):
