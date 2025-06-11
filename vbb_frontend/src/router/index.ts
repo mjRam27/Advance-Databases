@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 import SearchView from '../views/SearchView.vue'
+import LiveBoardView from '../views/LiveBoardView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -14,12 +15,12 @@ const router = createRouter({
       path: '/search',
       name: 'search',
       component: SearchView
+    },
+    {
+      path: '/live',
+      name: 'LiveBoard',
+      component: LiveBoardView
     }
-    // {
-    //   path: '/station-info'
-    //   name: 'search',
-    //   component: SearchView
-    // }
   ]
 })
 

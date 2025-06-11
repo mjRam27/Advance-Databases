@@ -44,16 +44,23 @@ const getStatusClass = (status: string): string => {
           </div>
           <p class="text-gray-700">{{ transport.origin }} → {{ transport.destination }}</p>
         </div>
-        <div class="text-right text-sm text-gray-600">
-      <p>Departure: {{ formatTime(transport.departureTime) }}</p>
-<p v-if="transport.arrivalTime">Arrival: {{ formatTime(transport.arrivalTime) }}</p>
+       <div class="text-right text-sm text-gray-600">
+  <p>Departure: {{ formatTime(transport.departureTime) }}</p>
+  <p v-if="transport.arrivalTime">Arrival: {{ formatTime(transport.arrivalTime) }}</p>
+  <p>Mode: {{ transport.type }}</p>
+  <p v-if="transport.platform">Platform: {{ transport.platform }}</p>
+  <p>
+    Delay: 
+    <span v-if="transport.statusMessage">
+      {{ transport.statusMessage }}
+    </span>
+    <span v-else>
+      On time
+    </span>
+  </p>
+</div>
 
-          <p v-if="transport.platform">Platform: {{ transport.platform }}</p>
-        </div>
-      </div>
-      <div v-if="transport.statusMessage" class="mt-2 text-sm text-gray-500">
-        {{ transport.statusMessage }}
-      </div>
+    </div>
     </div>
   </div>
 </template>

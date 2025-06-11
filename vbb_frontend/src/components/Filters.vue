@@ -43,20 +43,22 @@ const updateFilter = (event: Event) => {
 </script>
 
 <template>
-  <div class="flex flex-col min-w-[180px]">
+  <div class="flex flex-col min-w-[200px]">
     <label class="text-sm font-medium text-gray-700 mb-1">Transport Type</label>
     <div class="relative">
       <select
         v-model="selectedType"
         @change="updateFilter"
-
-ray-300 rounded-md text-sm focus:ring-primary-500 focus:border-primary-500 appearance-none
+        class="block w-full appearance-none border border-gray-300 bg-white text-sm px-3 py-2 pr-8 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
       >
         <option value="all">All Transport Types</option>
         <option value="train">Trains Only</option>
         <option value="bus">Buses Only</option>
         <option value="tram">Trams Only</option>
+        <option value="ice">ICE Only</option>
       </select>
+
+      <!-- Custom dropdown icon -->
       <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
         <svg class="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
           <path

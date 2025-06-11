@@ -12,7 +12,7 @@ const toggleMobileMenu = () => {
 const navItems = [
   { name: 'Dashboard', path: '/' },
   { name: 'Search', path: '/search' },
-  { name: 'Station Info', path: '/station-info' },
+  { name: 'LiveBoard', path: '/live' },
   { name: 'User History', path: '/user-history' }
 ]
 </script>

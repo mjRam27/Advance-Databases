@@ -3,7 +3,7 @@ from typing import Optional
 from backend_vbb.services.journey_service import fetch_journey
 from backend_vbb.services.refresh_service import refresh_journey
 from backend_vbb.utils.resolve import get_station_id
-
+from backend_vbb.services.departure_service import fetch_departures
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 import os
@@ -54,3 +54,9 @@ def refresh(token: str):
 def get_stations():
     stations = list(station_collection.find({}, {"_id": 0, "station_id": 1, "name": 1}))
     return {"stations": stations}
+
+
+
+@app.get("/departures")
+def get_departures(station_id: str, duration: int = 60):
+    return fetch_departures(station_id, duration)
