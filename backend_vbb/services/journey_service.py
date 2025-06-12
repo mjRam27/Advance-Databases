@@ -3,8 +3,8 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 from datetime import datetime
 import os
-from backend_vbb.utils.db_redis import cache_departure, get_cached_departure
-from backend_vbb.utils.resolve import get_station_id
+from utils.db_redis import cache_departure, get_cached_departure
+from utils.resolve import get_station_id
 from bson import ObjectId
 
 load_dotenv()

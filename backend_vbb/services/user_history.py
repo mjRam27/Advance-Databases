@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 from bson import ObjectId
-from backend_vbb.services.history_logic import get_user_history
+from services.history_logic import get_user_history
 
 router = APIRouter()
 

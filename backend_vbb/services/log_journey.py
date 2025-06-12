@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request
-from backend_vbb.services.history_logic import log_user_journey
+from services.history_logic import log_user_journey
 
 router = APIRouter()
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query
-from backend_vbb.services.log_service import get_user_history
+from services.log_service import get_user_history
 from bson import ObjectId
 
 router = APIRouter()

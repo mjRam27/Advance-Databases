@@ -1,5 +1,5 @@
 import requests
-from backend_vbb.utils.db_redis import get_cached_departure, cache_departure, redis_client
+from utils.db_redis import get_cached_departure, cache_departure, redis_client
 
 # Station IDs you want to cache
 CACHED_STATIONS = {"900000003201", "900000260009"}
