@@ -13,7 +13,7 @@ const navItems = [
   { name: 'Dashboard', path: '/' },
   { name: 'Search', path: '/search' },
   { name: 'LiveBoard', path: '/live' },
-  { name: 'User History', path: '/user-history' }
+  { name: 'UserHistory', path: '/user-history' }
 ]
 </script>
 
