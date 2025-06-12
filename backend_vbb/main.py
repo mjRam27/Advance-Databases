@@ -1,62 +1,69 @@
-from fastapi import FastAPI, Query
-from typing import Optional
-from backend_vbb.services.journey_service import fetch_journey
-from backend_vbb.services.refresh_service import refresh_journey
-from backend_vbb.utils.resolve import get_station_id
-from backend_vbb.services.departure_service import fetch_departures
-from fastapi.middleware.cors import CORSMiddleware
-from pymongo import MongoClient
 import os
+import sys
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from pymongo import MongoClient
+from typing import Optional, List
+
+# Add current directory to path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from services.journey_service import fetch_journey
+from services.refresh_service import refresh_journey
+from utils.resolve import get_station_id
+from utils.db_redis import cache_departure, get_cached_departure
+
+# 🔄 Load environment variables
+load_dotenv()
 
 app = FastAPI()
-load_dotenv()
-MONGO_URI = os.getenv("MONGO_URI")
-client = MongoClient(MONGO_URI)
-db = client["Vbb_transport"]
-station_collection = db["station_logs"]
 
-# CORS setup for frontend
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
-@app.get("/")
-def root():
-    return {"message": "VBB Transport API is running!"}
+# MongoDB setup
+MONGO_URI = os.getenv("MONGO_URI")
+client = MongoClient(MONGO_URI)
+db = client["vbb_transport"]
+station_collection = db["station_logs"]
 
-
+# 🌐 Journey Endpoint
 @app.get("/journey")
 def journey(
     from_station: str,
     to_station: str,
-    products: Optional[list[str]] = Query(default=None, alias="products[]"),
-    departure: Optional[str] = None,       # ✅ corrected key name
+    products: Optional[List[str]] = Query(default=None, alias="products[]"),
+    departure: Optional[str] = None,
     user_id: Optional[str] = None
 ):
-    # Resolve names to IDs
-    from_id = get_station_id(from_station) if not from_station.isdigit() else from_station
-    to_id = get_station_id(to_station) if not to_station.isdigit() else to_station
+    # Safety for null products
+    products = products or []
 
-    # ✅ Call journey service with all values
-    return fetch_journey(from_id, to_id, products, departure=departure, user_id=user_id)
+    # Convert to station IDs
+    from_id = get_station_id(from_station)
+    to_id = get_station_id(to_station)
 
+    return fetch_journey(
+        from_station=from_station,
+        to_station=to_station,
+        products=products,
+        departure=departure,
+        user_id=user_id
+    )
 
+# 🔁 Optional Refresh Endpoint (if needed)
 @app.get("/journey/refresh")
 def refresh(token: str):
     return refresh_journey(token)
 
-@app.get("/stations")
-def get_stations():
-    stations = list(station_collection.find({}, {"_id": 0, "station_id": 1, "name": 1}))
-    return {"stations": stations}
-
-
-
-@app.get("/departures")
-def get_departures(station_id: str, duration: int = 60):
-    return fetch_departures(station_id, duration)
+# ✅ Health Check
+@app.get("/")
+def health():
+    return {"message": "API is working 🚀"}

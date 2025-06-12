@@ -3,6 +3,7 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 from datetime import datetime
 import os
+from typing import Optional, List
 from backend_vbb.utils.db_redis import cache_departure, get_cached_departure
 from backend_vbb.utils.resolve import get_station_id
 
@@ -10,111 +11,59 @@ load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
-db = client["Vbb_transport"]
+db = client["vbb_transport"]
 journey_collection = db["journey_logs"]
 station_collection = db["station_logs"]
 user_collection = db["user_logs"]
 
-def fetch_journey(from_station: str, to_station: str, products: list[str] = None, date: str = None, user_id: str = None, departure: str = None):
-    from_id = get_station_id(from_station) if not from_station.isdigit() else from_station
-    to_id = get_station_id(to_station) if not to_station.isdigit() else to_station
+def fetch_journey(
+    from_station: str,
+    to_station: str,
+    products: List[str],
+    departure: Optional[str] = None,
+    user_id: Optional[str] = None
+):
+    from_id = get_station_id(from_station)
+    to_id = get_station_id(to_station)
 
-    cache_key = f"{from_id}:{to_id}:{','.join(products or [])}:{date or ''}"
+    cache_key = f"{from_id}:{to_id}:{'.'.join(products or [])}:{departure or ''}"
     cached = get_cached_departure(cache_key)
+
     if cached:
         print("✅ Cache hit:", cache_key)
-        return {"status": "cached", "journeys": cached}
+        return cached
 
-    url = "https://v5.vbb.transport.rest/journeys"
-    params = {
-        "from": from_id,
-        "to": to_id,
-        "stopovers": True,
-        "results": 5,
-        "language": "en",
-        "duration": 90,
-        "departure": departure,
-    }
-
-    if products:
-        modes_map = {
-            "train": ["suburban", "subway", "regional", "express"],
-            "bus": ["bus"],
-            "tram": ["tram"],
-            "all": ["suburban", "subway", "regional", "express", "bus", "tram"]
+    # API call (replace with your actual journey API logic)
+    response = requests.get(
+        "https://vbb.transport.api/journey",  # ⛔️ Replace with your actual endpoint
+        params={
+            "from": from_id,
+            "to": to_id,
+            "products": ','.join(products),
+            "departure": departure
         }
+    )
+    if response.status_code != 200:
+        raise Exception("Failed to fetch journey data")
 
-        for p in products:
-            for mode in modes_map.get(p, []):
-                params.setdefault("products[]", []).append(mode)
+    journey_data = response.json()
 
-    if date:
-        params["departure"] = date
+    # Cache response if needed
+    cache_departure(cache_key, journey_data)
 
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
+    # Log the journey if user_id exists
+    if user_id:
+        user_collection.update_one(
+            {"user_id": user_id},
+            {"$push": {
+                "logs": {
+                    "from_id": from_id,
+                    "to_id": to_id,
+                    "filters": products,
+                    "timestamp": datetime.utcnow()
+                }
+            }},
+            upsert=True
+        )
 
-        if not data.get("journeys"):
-            return {"status": "error", "message": "No journey found"}
-
-        all_journeys = []
-
-        for journey in data["journeys"]:
-            legs_info = []
-            total_changes = len(journey["legs"]) - 1
-
-            for leg in journey["legs"]:
-                legs_info.append({
-                    "line": leg.get("line", {}).get("name"),
-                    "mode": leg.get("line", {}).get("mode"),
-                    "departure": leg.get("departure"),
-                    "arrival": leg.get("arrival"),
-                    "origin": leg.get("origin", {}).get("name"),
-                    "destination": leg.get("destination", {}).get("name"),
-                    "stopovers": [
-                        {
-                            "name": stop.get("stop", {}).get("name"),
-                            "arrival": stop.get("arrival"),
-                            "departure": stop.get("departure"),
-                            "platform": stop.get("platform"),
-                        }
-                        for stop in leg.get("stopovers", [])
-                    ]
-                })
-
-            all_journeys.append({
-                "departure": journey.get("departure"),
-                "arrival": journey.get("arrival"),
-                "duration": journey.get("duration"),
-                "changes": total_changes,
-                "legs": legs_info
-            })
-
-        if all_journeys:
-            result = journey_collection.insert_one(all_journeys[0])
-            all_journeys[0]["_id"] = str(result.inserted_id)
-
-            if user_id:
-                user_collection.insert_one({
-                    "user_id": user_id,
-                    "from": all_journeys[0]["legs"][0]["origin"],
-                    "to": all_journeys[0]["legs"][-1]["destination"],
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "journey_id": all_journeys[0]["_id"]
-                })
-
-            for leg in all_journeys[0]["legs"]:
-                for station_name in [leg["origin"], leg["destination"]]:
-                    station_collection.update_one(
-                        {"station_id": station_name},
-                        {"$set": {"name": station_name, "line": leg["line"]}},
-                        upsert=True
-                    )
-
-        cache_departure(cache_key, all_journeys, ttl=300)
-        return {"status": "success", "journeys": all_journeys}
-
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    return journey_data
