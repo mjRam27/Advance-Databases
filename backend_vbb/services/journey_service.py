@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 from backend_vbb.utils.db_redis import cache_departure, get_cached_departure
 from backend_vbb.utils.resolve import get_station_id
+from bson import ObjectId
 
 load_dotenv()
 
@@ -84,25 +85,36 @@ def fetch_journey(from_station: str, to_station: str, products: list[str] = None
                     ]
                 })
 
+            # ✅ Extract key info from first and last legs
+            first_leg = journey["legs"][0]
+            last_leg = journey["legs"][-1]
+
             all_journeys.append({
-                "departure": journey.get("departure"),
-                "arrival": journey.get("arrival"),
+                "from": first_leg.get("origin", {}).get("name"),
+                "to": last_leg.get("destination", {}).get("name"),
+                "departure": first_leg.get("departure"),
+                "arrival": last_leg.get("arrival"),
                 "duration": journey.get("duration"),
+                "line": first_leg.get("line", {}).get("name"),
+                "mode": first_leg.get("line", {}).get("mode"),
+                "platform": first_leg.get("platform"),
+                "delay": first_leg.get("delay", 0),
                 "changes": total_changes,
                 "legs": legs_info
             })
 
         if all_journeys:
             result = journey_collection.insert_one(all_journeys[0])
-            all_journeys[0]["_id"] = str(result.inserted_id)
+            inserted_id = str(result.inserted_id)
+            all_journeys[0]["_id"] = inserted_id
 
             if user_id:
                 user_collection.insert_one({
                     "user_id": user_id,
                     "from": all_journeys[0]["legs"][0]["origin"],
                     "to": all_journeys[0]["legs"][-1]["destination"],
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "journey_id": all_journeys[0]["_id"]
+                    "timestamp": datetime.utcnow(),
+                    "journey_id": ObjectId(inserted_id)
                 })
 
             for leg in all_journeys[0]["legs"]:

@@ -8,6 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
+from backend_vbb.services.station_suggestions import router as suggest_router
+from backend_vbb.services.user_history import router as user_history_router
+from backend_vbb.services.log_journey import router as log_router
+
+
+
+
+
 
 app = FastAPI()
 load_dotenv()
@@ -24,6 +32,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(suggest_router)
+app.include_router(user_history_router)
+app.include_router(log_router)
+
 
 @app.get("/")
 def root():

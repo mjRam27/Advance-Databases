@@ -1,24 +1,18 @@
-from pymongo import MongoClient
-from datetime import datetime, timezone
-import os
-from dotenv import load_dotenv
+from fastapi import APIRouter, Query
+from backend_vbb.services.log_service import get_user_history
+from bson import ObjectId
 
-load_dotenv()
-MONGO_URI = os.getenv("MONGO_URI")
-client = MongoClient(MONGO_URI)
-db = client["Vbb_transport"]
-user_logs_collection = db["user_logs"]
+router = APIRouter()
 
-def log_journey(user_id: str, from_station: str, to_station: str, filters: list[str]):
-    log = {
-        "from_station": from_station,
-        "to_station": to_station,
-        "filters": filters,
-        "timestamp": datetime.now(timezone.utc)
-    }
+@router.get("/user-history")
+def user_history(user_id: str):
+    logs = get_user_history(user_id)
 
-    user_logs_collection.update_one(
-        {"user_id": user_id},
-        {"$push": {"logs": log}},
-        upsert=True
-    )
+    # ✅ Convert ObjectId to str for _id and journey_id
+    for log in logs:
+        if "_id" in log and isinstance(log["_id"], ObjectId):
+            log["_id"] = str(log["_id"])
+        if "journey_id" in log and isinstance(log["journey_id"], ObjectId):
+            log["journey_id"] = str(log["journey_id"])
+
+    return {"logs": logs}
